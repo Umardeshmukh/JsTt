@@ -43,6 +43,11 @@ async function startServer() {
     next();
   };
 
+  // Render / Cloud Health Check
+  app.get('/healthz', (_req: Request, res: Response) => {
+    res.status(200).json({ status: 'ok', uptime: process.uptime() });
+  });
+
   // -------------------------------------------------------------
   // BUDGET & SYSTEM STATUS
   // -------------------------------------------------------------
