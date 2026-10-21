@@ -34,54 +34,54 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* 1. Lightweight Stats Grid: Exactly the 4 required metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         {/* Metric 1: Current Lesson */}
-        <div className="p-4 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
+        <div className="p-3 sm:p-4 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
           <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-            <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Current Lesson</span>
+            <BookOpen className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            <span className="truncate">Current Lesson</span>
           </div>
           <div className="text-sm font-bold text-slate-100 truncate">
-            {currentQuest ? currentQuest.title : 'All Quests Completed'}
+            {currentQuest ? currentQuest.title : 'All Done'}
           </div>
           <div className="text-[11px] text-slate-400 truncate">
-            {currentQuest ? `Lesson ${currentQuest.number} of ${allQuests.length}` : 'World 1 Finished'}
+            {currentQuest ? `Lesson ${currentQuest.number} of ${allQuests.length}` : 'Completed'}
           </div>
         </div>
 
         {/* Metric 2: Questions Completed */}
-        <div className="p-4 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
+        <div className="p-3 sm:p-4 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
           <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Questions Completed</span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="truncate">Completed</span>
           </div>
           <div className="text-sm font-bold text-slate-100 font-mono">
             {completedCount} <span className="text-slate-500 font-normal text-xs">/ {totalItems}</span>
           </div>
-          <div className="text-[11px] text-slate-400">
-            {allQuests.filter((q) => completedQuestIds.includes(q.id)).length} lessons, {QUESTION_BANK.filter((q) => completedQuestIds.includes(q.id)).length} checks
+          <div className="text-[11px] text-slate-400 truncate">
+            {allQuests.filter((q) => completedQuestIds.includes(q.id)).length} quests, {QUESTION_BANK.filter((q) => completedQuestIds.includes(q.id)).length} checks
           </div>
         </div>
 
         {/* Metric 3: XP & Current Level */}
-        <div className="p-4 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
+        <div className="p-3 sm:p-4 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
           <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-            <Award className="w-3.5 h-3.5 text-amber-400" />
-            <span>XP & Level</span>
+            <Award className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="truncate">XP & Level</span>
           </div>
-          <div className="text-sm font-bold text-slate-100 font-mono">
+          <div className="text-sm font-bold text-slate-100 font-mono truncate">
             Level {levelInfo.level}
           </div>
-          <div className="text-[11px] text-slate-400 font-mono">
-            {totalXp} XP total ({levelInfo.neededForNext} XP to next level)
+          <div className="text-[11px] text-slate-400 font-mono truncate">
+            {totalXp} XP ({levelInfo.neededForNext} to next)
           </div>
         </div>
 
         {/* Metric 4: Overall Course Progress */}
-        <div className="p-4 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
+        <div className="p-3 sm:p-4 rounded-lg bg-slate-900 border border-slate-800 space-y-1">
           <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-            <BarChart2 className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Course Progress</span>
+            <BarChart2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            <span className="truncate">Progress</span>
           </div>
           <div className="text-sm font-bold text-slate-100 font-mono">
             {coursePercent}%
@@ -102,7 +102,7 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
 
       {/* 2. Direct Continue Action */}
       {currentQuest && (
-        <div className="p-4 rounded-lg bg-slate-900/60 border border-slate-800 flex items-center justify-between gap-4">
+        <div className="p-4 rounded-lg bg-slate-900/60 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div>
             <div className="text-xs text-slate-400">Ready to keep coding?</div>
             <div className="text-sm font-semibold text-slate-200">
@@ -114,7 +114,7 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
               playButtonPop(soundEnabled);
               onContinueLesson();
             }}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs sm:text-sm transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 shrink-0"
+            className="w-full sm:w-auto min-h-[44px] inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs sm:text-sm transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 shrink-0 touch-manipulation active:scale-[0.98]"
           >
             <span>Continue Lesson</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -160,13 +160,13 @@ export const ProgressView: React.FC<ProgressViewProps> = ({
       </section>
 
       {/* 4. Data Management & Reset Action */}
-      <div className="pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-500">
+      <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500">
         <span>Progress is saved automatically to your browser and synced with the server.</span>
         <button
           onClick={onResetProgress}
-          className="flex items-center gap-1 text-slate-400 hover:text-rose-400 transition-colors focus:outline-none"
+          className="min-h-[36px] flex items-center gap-1.5 text-slate-400 hover:text-rose-400 transition-colors focus:outline-none self-start sm:self-auto touch-manipulation active:scale-95"
         >
-          <RotateCcw className="w-3 h-3" />
+          <RotateCcw className="w-3.5 h-3.5" />
           <span>Reset Progress</span>
         </button>
       </div>

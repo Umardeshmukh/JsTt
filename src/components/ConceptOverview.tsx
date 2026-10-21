@@ -35,7 +35,7 @@ export const ConceptOverview: React.FC<ConceptOverviewProps> = ({
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 rounded px-1.5 py-0.5"
+          className="min-h-[36px] flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 rounded px-2.5 py-1 touch-manipulation"
           aria-expanded={isExpanded}
         >
           <span>{isExpanded ? 'Collapse' : 'Expand'}</span>
@@ -109,7 +109,7 @@ export const ConceptOverview: React.FC<ConceptOverviewProps> = ({
               <button
                 type="button"
                 onClick={onJumpToExercise}
-                className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 rounded p-1"
+                className="min-h-[36px] inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 rounded px-2.5 py-1 touch-manipulation active:scale-95"
               >
                 <span>Jump to Question</span>
                 <ArrowDown className="w-3.5 h-3.5" />

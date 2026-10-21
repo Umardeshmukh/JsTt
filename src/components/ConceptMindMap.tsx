@@ -115,8 +115,9 @@ export const ConceptMindMap: React.FC<ConceptMindMapProps> = ({
               role="radiogroup"
               aria-label={`${centralLabel} sub-concepts`}
             >
-              {nodes.map((node) => {
+              {nodes.map((node, idx) => {
                 const isSelected = selectedNode?.id === node.id;
+                const isOddLast = nodes.length % 2 !== 0 && idx === nodes.length - 1;
                 return (
                   <button
                     key={node.id}
@@ -124,9 +125,11 @@ export const ConceptMindMap: React.FC<ConceptMindMapProps> = ({
                     role="radio"
                     aria-checked={isSelected}
                     onClick={() => handleSelect(node)}
-                    className={`px-3 py-2 rounded-lg border text-left text-xs transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 flex flex-col justify-between ${
+                    className={`px-3 py-2 min-h-[44px] rounded-lg border text-left text-xs touch-manipulation transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 flex flex-col justify-center ${
+                      isOddLast ? 'col-span-2 sm:col-span-1' : ''
+                    } ${
                       isSelected
-                        ? 'bg-indigo-950/50 border-indigo-500 text-slate-100 shadow-sm ring-1 ring-indigo-500/50'
+                        ? 'bg-indigo-950/60 border-indigo-500 text-slate-100 shadow-sm ring-1 ring-indigo-500/50'
                         : 'bg-slate-950/80 hover:bg-slate-800 border-slate-800 text-slate-300'
                     }`}
                   >
@@ -134,7 +137,7 @@ export const ConceptMindMap: React.FC<ConceptMindMapProps> = ({
                       <span className="font-semibold font-mono truncate">{node.label}</span>
                       {node.badge && (
                         <span
-                          className={`text-[9px] px-1 py-0.2 rounded font-sans font-medium shrink-0 ${
+                          className={`text-[9px] px-1 py-0.5 rounded font-sans font-medium shrink-0 ${
                             isSelected
                               ? 'bg-indigo-600/60 text-indigo-200'
                               : 'bg-slate-800 text-slate-400'

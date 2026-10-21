@@ -364,7 +364,7 @@ export default function App() {
       />
 
       {/* 2. Main Work Area: Learn or Progress */}
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <main className="flex-1 max-w-5xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-8">
         {currentView === 'learn' && (
           <LearnView
             currentQuest={activeQuest}
@@ -424,13 +424,13 @@ export default function App() {
             <div className="flex items-center gap-2 pt-2">
               <button
                 onClick={() => setShowResetModal(false)}
-                className="flex-1 py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="flex-1 min-h-[44px] py-2 px-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 touch-manipulation active:scale-95"
               >
                 Cancel
               </button>
               <button
                 onClick={handleResetProgress}
-                className="flex-1 py-1.5 px-3 rounded bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-rose-400"
+                className="flex-1 min-h-[44px] py-2 px-3 rounded bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-rose-400 touch-manipulation active:scale-95"
               >
                 Reset Now
               </button>

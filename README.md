@@ -46,6 +46,7 @@ Structured, reusable concept records for 8 foundational JavaScript topics:
 
 ### 6. Distraction-Free, Accessible Design System
 - Neutral dark background (`#090D16`) with high-contrast slate text and indigo accent.
+- **Mobile Responsive & Small-Screen Optimized:** WCAG-compliant touch targets (`≥ 44px`), iOS Safari auto-zoom prevention, sticky mobile exercise action bar with safe-area insets, and zero clipping on 320px screens.
 - Visible `:focus-visible` rings across all interactive controls.
 - Keyboard navigation:
   - <kbd>Ctrl</kbd> / <kbd>Cmd</kbd> + <kbd>Enter</kbd> to Run Code / Check Answer

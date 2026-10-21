@@ -262,18 +262,19 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
             playButtonPop(soundEnabled);
             onBack();
           }}
-          className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white py-1 px-2 rounded-md hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500"
+          className="min-h-[38px] flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white py-1.5 px-2.5 rounded-md hover:bg-slate-800 transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 touch-manipulation shrink-0"
           aria-label="Back to lessons"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to Lessons</span>
+          <span className="hidden sm:inline">Back to Lessons</span>
+          <span className="sm:hidden">Back</span>
         </button>
 
-        <div className="text-xs text-slate-400 truncate max-w-xs sm:max-w-md">
-          <span className="font-semibold text-slate-200">{lessonTitle}</span>
+        <div className="text-xs text-slate-400 truncate max-w-[130px] sm:max-w-md text-center">
+          <span className="font-semibold text-slate-200 truncate">{lessonTitle}</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {isCompleted && (
             <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-emerald-400 font-medium bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded">
               <CheckCircle2 className="w-3 h-3" />
@@ -404,8 +405,8 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
 
                 {/* Quick insert chips */}
                 {quest.starterChips && quest.starterChips.length > 0 && (
-                  <div className="bg-slate-950/70 border-t border-slate-800/80 px-3 py-1.5 flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[10px] text-slate-500">Insert:</span>
+                  <div className="bg-slate-950/70 border-t border-slate-800/80 px-3 py-2 flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] text-slate-500 font-medium">Quick insert:</span>
                     {quest.starterChips.map((chip, idx) => (
                       <button
                         key={idx}
@@ -413,7 +414,7 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
                           playButtonPop(soundEnabled);
                           setCode((prev) => prev + (prev.endsWith('\n') || prev.length === 0 ? '' : ' ') + chip);
                         }}
-                        className="font-mono text-[11px] px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                        className="font-mono text-xs px-2.5 py-1 min-h-[32px] rounded bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-200 transition-colors touch-manipulation"
                       >
                         {chip}
                       </button>
@@ -458,7 +459,7 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
           <div className="space-y-4 max-w-3xl">
             {/* Question Text & Code Snippet */}
             <div className="rounded-lg bg-slate-900 border border-slate-800 p-4 space-y-3">
-              <h2 className="text-sm sm:text-base font-semibold text-slate-100">
+              <h2 className="text-sm sm:text-base font-semibold text-slate-100 leading-snug">
                 {dynamic.question}
               </h2>
 
@@ -486,14 +487,14 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
                         setSelectedOptionId(opt.id);
                         playButtonPop(soundEnabled);
                       }}
-                      className={`w-full flex items-start gap-3 p-3 rounded-lg border text-left text-xs sm:text-sm transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                      className={`w-full flex items-start gap-3 p-3.5 min-h-[48px] rounded-lg border text-left text-xs sm:text-sm touch-manipulation transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                         isSelected
-                          ? 'bg-indigo-950/40 border-indigo-500 text-slate-100'
-                          : 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-300'
+                          ? 'bg-indigo-950/50 border-indigo-500 text-slate-100 ring-1 ring-indigo-500/50'
+                          : 'bg-slate-900 hover:bg-slate-850 active:bg-slate-800 border-slate-800 text-slate-300'
                       }`}
                     >
                       <span
-                        className={`w-5 h-5 rounded flex items-center justify-center text-xs font-mono shrink-0 font-bold ${
+                        className={`w-5 h-5 rounded flex items-center justify-center text-xs font-mono shrink-0 font-bold mt-0.5 ${
                           isSelected
                             ? 'bg-indigo-600 text-white'
                             : 'bg-slate-800 text-slate-400 border border-slate-700'
@@ -521,7 +522,7 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
                   value={textAnswer}
                   onChange={(e) => setTextAnswer(e.target.value)}
                   placeholder="e.g. let, const, typeof..."
-                  className="w-full max-w-md px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-slate-100 font-mono text-sm outline-none focus:border-indigo-500"
+                  className="w-full max-w-md px-3.5 py-2.5 min-h-[44px] rounded-lg bg-slate-950 border border-slate-800 text-slate-100 font-mono text-base sm:text-sm outline-none focus:border-indigo-500"
                   autoFocus
                 />
               </div>
@@ -535,7 +536,7 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
                   if (!showHint) playHintPing(soundEnabled);
                   setShowHint(!showHint);
                 }}
-                className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-slate-200 transition-colors focus:outline-none"
+                className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-slate-200 transition-colors focus:outline-none min-h-[36px]"
                 aria-expanded={showHint}
               >
                 <span className="flex items-center gap-1.5 font-medium">
@@ -589,18 +590,18 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
           </div>
         )}
 
-        {/* 5. Bottom Action Controls */}
-        <div className="border-t border-slate-800 pt-4 flex items-center justify-between gap-4 mt-auto">
+        {/* 5. Bottom Action Controls (Sticky on mobile for effortless thumb reach) */}
+        <div className="sticky bottom-0 z-20 bg-[#090d16]/95 backdrop-blur-md border-t border-slate-800/90 py-3 px-4 -mx-4 sm:mx-0 sm:px-0 sm:py-4 sm:static flex items-center justify-between gap-3 mt-auto">
           <span className="text-xs text-slate-500 hidden sm:inline font-mono">
             Shortcut: <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-400">Ctrl</kbd> + <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-400">Enter</kbd>
           </span>
 
-          <div className="flex items-center gap-3 ml-auto">
+          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto sm:ml-auto justify-end">
             {result.checked && result.isCorrect ? (
               <button
                 ref={continueButtonRef}
                 onClick={handleContinue}
-                className="inline-flex items-center gap-2 px-5 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs sm:text-sm transition-colors focus-visible:ring-2 focus-visible:ring-emerald-400"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-md bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold text-xs sm:text-sm transition-colors focus-visible:ring-2 focus-visible:ring-emerald-400 touch-manipulation shadow-sm"
               >
                 <span>{hasNext ? 'Continue to Next Lesson' : 'Return to Curriculum'}</span>
                 <ArrowRight className="w-4 h-4" />
@@ -609,7 +610,7 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
               <button
                 onClick={handleCheckAnswer}
                 disabled={isChecking || !canCheck}
-                className="inline-flex items-center gap-2 px-5 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold text-xs sm:text-sm transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] rounded-md bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:opacity-50 text-white font-semibold text-xs sm:text-sm transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 touch-manipulation shadow-sm"
               >
                 <Play className="w-3.5 h-3.5 fill-white" />
                 <span>{isChecking ? 'Checking...' : isQuest ? 'Run Code' : 'Check Answer'}</span>

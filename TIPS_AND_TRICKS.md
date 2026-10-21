@@ -195,3 +195,12 @@ npx tsx --test src/game/concepts.test.ts
 CodeQuest operates at $0 cost by default:
 - Uses the embedded question bank in [`src/data/question_bank.ts`](file:///Users/umerdeshmukh/Documents/JsTt/src/data/question_bank.ts) if Google GenAI is offline or no API key is provided.
 - Passwordless magic links are verified in-memory or via local tokens without needing paid transactional email services.
+
+---
+
+### Mobile & Small Screen Optimization
+- **Minimum 44px Touch Targets:** All interactive buttons and inputs meet WCAG touch target recommendations (`min-h-[44px]` or `min-h-[38px]` with `touch-manipulation`).
+- **iOS Safari Auto-Zoom Prevention:** Form inputs use `font-size: 16px` on viewports under 640px to eliminate unwanted browser zoom.
+- **Sticky Exercise Action Bar:** On mobile devices, the Check Answer / Run Code bar sticks cleanly to the bottom (`sticky bottom-0`) with safe-area inset support (`env(safe-area-inset-bottom)`).
+- **Horizontal Smooth Scrolling:** Concept selection tabs and code blocks feature touch-scrolling without awkward wrapping.
+- **320px Viewport Safety:** Dropdown menus and modals use `max-w-[calc(100vw-1.5rem)]` to prevent horizontal clipping on narrow phones (e.g., iPhone SE).

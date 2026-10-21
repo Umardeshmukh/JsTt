@@ -66,12 +66,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-[#090d16]/95 backdrop-blur border-b border-slate-800">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+      <div className="max-w-5xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-2 sm:gap-4">
         {/* Brand & Minimal Navigation */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-2.5 sm:gap-6 min-w-0">
           <button
             onClick={() => onNavigate('learn')}
-            className="text-base font-bold tracking-tight text-slate-100 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
+            className="text-sm sm:text-base font-bold tracking-tight text-slate-100 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 rounded shrink-0"
             aria-label="CodeQuest Home"
           >
             Code<span className="text-indigo-400">Quest</span>
@@ -80,7 +80,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <nav className="flex items-center gap-1 sm:gap-2" aria-label="Main navigation">
             <button
               onClick={() => onNavigate('learn')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+              className={`px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
                 currentView === 'learn'
                   ? 'bg-slate-800 text-indigo-300 border border-slate-700'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -90,7 +90,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             <button
               onClick={() => onNavigate('progress')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+              className={`px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
                 currentView === 'progress'
                   ? 'bg-slate-800 text-indigo-300 border border-slate-700'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -102,10 +102,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Status & Secondary Menu */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {/* Authoritative Level & XP Badge */}
           <div
-            className="flex items-center gap-2 px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-300"
+            className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-[11px] sm:text-xs font-mono text-slate-300"
             title={`${levelInfo.currentLevelXp} total XP`}
           >
             <span className="text-indigo-400 font-semibold">Lv.{levelInfo.level}</span>
@@ -128,7 +128,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {showSettingsMenu && (
               <div
                 role="menu"
-                className="absolute right-0 mt-2 w-72 rounded-lg bg-slate-900 border border-slate-800 shadow-xl p-3 text-xs text-slate-300 z-50 space-y-3"
+                className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-lg bg-slate-900 border border-slate-800 shadow-xl p-3 text-xs text-slate-300 z-50 space-y-3"
               >
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                   <span className="font-semibold text-slate-200">Settings</span>
