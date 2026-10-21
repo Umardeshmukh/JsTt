@@ -153,6 +153,27 @@ npm run build
 
 ---
 
+## 🚀 Deploying to Vercel & Netlify
+
+CodeQuest is optimized for instant 1-click deployments on both **Vercel** and **Netlify** with zero configuration required.
+
+### Deploy to Vercel
+1. Import your GitHub repository into the [Vercel Dashboard](https://vercel.com/new).
+2. Framework Preset will automatically detect **Vite**.
+3. Settings:
+   - **Build Command:** `npm run build`
+   - **Output Directory:** `dist`
+4. Click **Deploy**. SPA rewrites are pre-configured in `vercel.json`.
+
+### Deploy to Netlify
+1. Import your GitHub repository into the [Netlify Dashboard](https://app.netlify.com/start).
+2. Settings:
+   - **Build Command:** `npm run build`
+   - **Publish Directory:** `dist`
+3. Click **Deploy Site**. SPA redirects are pre-configured in `netlify.toml` and `public/_redirects`.
+
+---
+
 ## 🔒 Security & Sandboxing Features
 
 1. **Strict Content Isolation:** In-browser execution of user solutions is shielded from sensitive host environment properties (`window`, `document`, `fetch`, `localStorage`).

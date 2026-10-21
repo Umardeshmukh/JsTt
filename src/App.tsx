@@ -15,6 +15,7 @@ import { LearnView } from './components/LearnView';
 import { ProgressView } from './components/ProgressView';
 import { ExerciseScreen, ExerciseItem } from './components/ExerciseScreen';
 import { AuthUser } from './services/auth_service';
+import { validateExerciseAnswer } from './services/exercise_verifier';
 import { playButtonPop } from './utils/sound';
 
 const STORAGE_KEY = 'codequest_user_progress_v1';
@@ -127,14 +128,43 @@ export default function App() {
     world1.quests.find((q) => !progress.completedQuestIds.includes(q.id)) ||
     world1.quests[world1.quests.length - 1];
 
-  // Auth: Send magic link
+  // Auth: Send magic link (supports both backend and static Vercel/Netlify CDN modes)
   const handleSendMagicLink = async (email: string) => {
-    const res = await fetch('/api/auth/magic-link', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-    return res.json();
+    try {
+      const res = await fetch('/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      throw new Error('Backend not available');
+    } catch {
+      // Static CDN fallback: instant local session without external server
+      const localToken = `local_session_${Date.now()}`;
+      const localUser: AuthUser = {
+        id: `usr_${Date.now().toString(36)}`,
+        email,
+        emailVerified: true,
+        username: email.split('@')[0] || 'Learner',
+        level: calculateLevel(progress.xp).level,
+        totalXp: progress.xp,
+        streakDays: 1,
+        completedQuestIds: progress.completedQuestIds,
+        unlockedAchievementIds: [],
+        claimedMissionIds: [],
+        createdAt: new Date().toISOString(),
+      };
+      localStorage.setItem(AUTH_TOKEN_KEY, localToken);
+      setAuthUser(localUser);
+      return {
+        success: true,
+        message: 'Signed in successfully (Static / Local Mode).',
+        verificationUrl: window.location.href,
+        token: localToken,
+      };
+    }
   };
 
   // Auth: Logout
@@ -224,32 +254,49 @@ export default function App() {
     };
   };
 
-  // Check dynamic exercise with authoritative server verification
+  // Check dynamic exercise with authoritative server verification (or instant client fallback on static CDN)
   const handleCheckDynamic = async (userAnswer: string | string[]) => {
     if (!activeExerciseItem || activeExerciseItem.type !== 'dynamic') {
       return { isCorrect: false, feedback: 'No active exercise.', awardedXp: 0 };
     }
 
     const exercise = activeExerciseItem.data;
-    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    let isCorrect = false;
+    let feedback = '';
+    let awardedXp = 0;
 
-    const res = await fetch('/api/validate-exercise', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        exerciseId: exercise.id,
-        userAnswer,
-        topicKey: exercise.conceptId,
-        completedExerciseIds: progress.completedQuestIds,
-      }),
-    });
+    try {
+      const token = localStorage.getItem(AUTH_TOKEN_KEY);
+      const res = await fetch('/api/validate-exercise', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          exerciseId: exercise.id,
+          userAnswer,
+          topicKey: exercise.conceptId,
+          completedExerciseIds: progress.completedQuestIds,
+        }),
+      });
 
-    const data = await res.json();
-    const isCorrect = !!data.isCorrect;
-    const awardedXp = data.xpAwarded || 0;
+      if (res.ok) {
+        const data = await res.json();
+        isCorrect = !!data.isCorrect;
+        awardedXp = data.xpAwarded || 0;
+        feedback = data.feedback || (isCorrect ? 'Well done! Answer is correct.' : 'Not quite. Check your answer and try again.');
+      } else {
+        throw new Error('API unreachable');
+      }
+    } catch {
+      // Offline / Static CDN fallback (Vercel & Netlify client-side evaluation)
+      const localResult = validateExerciseAnswer(exercise, userAnswer);
+      isCorrect = localResult.isCorrect;
+      const alreadyDone = progress.completedQuestIds.includes(exercise.id);
+      awardedXp = isCorrect && !alreadyDone ? localResult.xp : 0;
+      feedback = localResult.feedback;
+    }
 
     if (isCorrect) {
       setProgress((prev) => {
@@ -267,7 +314,7 @@ export default function App() {
 
     return {
       isCorrect,
-      feedback: data.feedback || (isCorrect ? 'Well done! Answer is correct.' : 'Not quite. Check your answer and try again.'),
+      feedback,
       awardedXp,
     };
   };
