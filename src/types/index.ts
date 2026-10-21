@@ -13,6 +13,7 @@ export interface Quest {
   };
   mascotTip: string;
   starterCode: string;
+  solutionCode?: string;
   solutionHint: string;
   starterChips?: string[]; // Quick snippet insertion buttons
   expectedOutcomeDescription: string;

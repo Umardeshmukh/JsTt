@@ -11,10 +11,20 @@ import {
   Terminal,
   ArrowRight,
   Code2,
+  KeyRound,
+  Eye,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { playButtonPop, playSuccessChime, playErrorBuzz, playHintPing } from '../utils/sound';
 import { getConceptById, mapTopicToConceptId } from '../data/concepts';
 import { ConceptOverview } from './ConceptOverview';
+import {
+  getSolutionStatus,
+  requestRevealSolution,
+  HOURLY_SOLUTION_LIMIT,
+  SolutionStatus,
+} from '../services/solution_limiter';
 
 export type ExerciseItem =
   | { type: 'quest'; data: Quest }
@@ -59,6 +69,12 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
   const [textAnswer, setTextAnswer] = useState<string>('');
   const [arrangedLines, setArrangedLines] = useState<string[]>([]);
 
+  // Solution Rate Limiting & Reveal State
+  const [hasAttempted, setHasAttempted] = useState<boolean>(false);
+  const [solutionModalOpen, setSolutionModalOpen] = useState<boolean>(false);
+  const [solutionNotice, setSolutionNotice] = useState<string | null>(null);
+  const [copiedSolution, setCopiedSolution] = useState<boolean>(false);
+
   // Common UI State
   const [showHint, setShowHint] = useState<boolean>(false);
   const [isChecking, setIsChecking] = useState<boolean>(false);
@@ -81,6 +97,10 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
   useEffect(() => {
     setShowHint(false);
     setIsChecking(false);
+    setHasAttempted(false);
+    setSolutionModalOpen(false);
+    setSolutionNotice(null);
+    setCopiedSolution(false);
     setResult({
       checked: false,
       isCorrect: false,
@@ -157,6 +177,8 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
   const handleCheckAnswer = async () => {
     if (isChecking) return;
     setIsChecking(true);
+    setHasAttempted(true);
+    setSolutionNotice(null);
     playButtonPop(soundEnabled);
 
     try {
@@ -209,6 +231,55 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
     } finally {
       setIsChecking(false);
     }
+  };
+
+  // Solution Rate Limiting & Display Logic
+  const solutionStatus: SolutionStatus = getSolutionStatus(item.data.id, hasAttempted);
+
+  const displayedSolutionText = isQuest
+    ? quest?.solutionCode || quest?.conceptExplanation.syntaxSnippet || ''
+    : dynamic?.options && dynamic.options.length > 0
+    ? (() => {
+        const opt = dynamic.options.find((o) => o.id === dynamic.correctAnswer);
+        return opt ? `Option: ${opt.text}` : String(dynamic.correctAnswer);
+      })()
+    : Array.isArray(dynamic?.correctAnswer)
+    ? dynamic.correctAnswer.join('\n')
+    : String(dynamic?.correctAnswer || '');
+
+  const displayedExplanationText = isQuest
+    ? quest?.conceptExplanation.summary || quest?.solutionHint || ''
+    : (dynamic && (dynamic.explanations[String(dynamic.correctAnswer)] || dynamic.hints[dynamic.hints.length - 1])) ||
+      'This is the verified correct answer for this challenge.';
+
+  const handleViewSolution = () => {
+    playButtonPop(soundEnabled);
+    setSolutionNotice(null);
+
+    const outcome = requestRevealSolution(item.data.id, hasAttempted);
+    if (!outcome.success) {
+      setSolutionNotice(outcome.error || 'Cannot view solution at this time.');
+      return;
+    }
+
+    setSolutionModalOpen(true);
+  };
+
+  const handleApplySolution = () => {
+    if (isQuest && quest) {
+      const sol = quest.solutionCode || quest.expectedOutcomeDescription;
+      setCode(sol);
+      playButtonPop(soundEnabled);
+      setSolutionModalOpen(false);
+    }
+  };
+
+  const handleCopySolution = (text: string) => {
+    try {
+      navigator.clipboard.writeText(text);
+      setCopiedSolution(true);
+      setTimeout(() => setCopiedSolution(false), 2000);
+    } catch {}
   };
 
   const handleResetCode = () => {
@@ -307,7 +378,7 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
         <ConceptOverview
           concept={currentConcept}
           onJumpToExercise={handleJumpToQuestion}
-          defaultExpanded={true}
+          defaultExpanded={false}
         />
 
         {/* Learning Format Step 5: Interactive Question */}
@@ -359,6 +430,47 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
                 {showHint && (
                   <div className="mt-2.5 pt-2.5 border-t border-slate-800 text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-2.5 rounded">
                     {hintText}
+                  </div>
+                )}
+              </div>
+
+              {/* Solution Unlock & Reveal Card (Max 3/hr, must attempt first) */}
+              <div className="rounded-lg bg-slate-900 border border-slate-800 p-3 space-y-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
+                    <KeyRound className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Solution</span>
+                  </div>
+                  <span className="text-[11px] font-mono text-slate-400">
+                    {solutionStatus.remainingViews} / {HOURLY_SOLUTION_LIMIT} views left this hr
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleViewSolution}
+                  className={`w-full py-2 px-3 rounded text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors touch-manipulation min-h-[38px] ${
+                    solutionStatus.isAlreadyRevealed
+                      ? 'bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-800/60'
+                      : hasAttempted && solutionStatus.canView
+                      ? 'bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40'
+                      : 'bg-slate-950/70 hover:bg-slate-950 text-slate-400 border border-slate-800'
+                  }`}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>
+                    {solutionStatus.isAlreadyRevealed
+                      ? 'View Solution (Already Unlocked)'
+                      : hasAttempted
+                      ? 'Unlock & View Solution'
+                      : 'View Solution (Try First)'}
+                  </span>
+                </button>
+
+                {solutionNotice && (
+                  <div className="p-2.5 rounded bg-amber-950/30 border border-amber-900/40 text-[11px] text-amber-300 leading-relaxed flex items-start gap-2">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                    <p>{solutionNotice}</p>
                   </div>
                 )}
               </div>
@@ -551,6 +663,47 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Solution Unlock & Reveal Card (Max 3/hr, must attempt first) */}
+            <div className="rounded-lg bg-slate-900 border border-slate-800 p-3 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
+                  <KeyRound className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Solution</span>
+                </div>
+                <span className="text-[11px] font-mono text-slate-400">
+                  {solutionStatus.remainingViews} / {HOURLY_SOLUTION_LIMIT} views left this hr
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleViewSolution}
+                className={`w-full py-2 px-3 rounded text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors touch-manipulation min-h-[38px] ${
+                  solutionStatus.isAlreadyRevealed
+                    ? 'bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-800/60'
+                    : hasAttempted && solutionStatus.canView
+                    ? 'bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40'
+                    : 'bg-slate-950/70 hover:bg-slate-950 text-slate-400 border border-slate-800'
+                }`}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>
+                  {solutionStatus.isAlreadyRevealed
+                    ? 'View Solution (Already Unlocked)'
+                    : hasAttempted
+                    ? 'Unlock & View Solution'
+                    : 'View Solution (Try First)'}
+                </span>
+              </button>
+
+              {solutionNotice && (
+                <div className="p-2.5 rounded bg-amber-950/30 border border-amber-900/40 text-[11px] text-amber-300 leading-relaxed flex items-start gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                  <p>{solutionNotice}</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -561,7 +714,7 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
             className={`rounded-lg p-3.5 border transition-all ${
               result.isCorrect
                 ? 'bg-emerald-950/30 border-emerald-800/80 text-emerald-300'
-                : 'bg-rose-950/30 border-rose-800/80 text-rose-300'
+                : 'bg-rose-950/30 border-rose-900/80 text-rose-300'
             }`}
           >
             <div className="flex items-start gap-2.5">
@@ -619,6 +772,94 @@ export const ExerciseScreen: React.FC<ExerciseScreenProps> = ({
           </div>
         </div>
       </main>
+
+      {/* 6. Solution Reveal Modal Dialog (Rate Limited: Max 3/hr) */}
+      {solutionModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="solution-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+        >
+          <div className="relative w-full max-w-lg rounded-xl bg-slate-900 border border-slate-800 p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-indigo-400" />
+                <h3 id="solution-modal-title" className="text-sm font-bold text-slate-100">
+                  Official Solution & Explanation
+                </h3>
+              </div>
+              <span className="text-[11px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded">
+                {solutionStatus.remainingViews} of {HOURLY_SOLUTION_LIMIT} views left this hr
+              </span>
+            </div>
+
+            {/* Solution Content */}
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-semibold">
+                  {isQuest ? 'Solution Code' : 'Correct Answer'}
+                </span>
+                <div className="relative rounded-lg bg-slate-950 border border-slate-800/90 p-3.5 font-mono text-xs sm:text-sm text-indigo-300 overflow-x-auto leading-relaxed">
+                  <pre className="whitespace-pre-wrap">{displayedSolutionText}</pre>
+                  <button
+                    type="button"
+                    onClick={() => handleCopySolution(displayedSolutionText)}
+                    className="absolute top-2.5 right-2.5 p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs flex items-center gap-1 transition-colors touch-manipulation"
+                    title="Copy solution"
+                  >
+                    {copiedSolution ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-400" />
+                        <span className="text-[10px] text-emerald-400 font-sans">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" />
+                        <span className="text-[10px] font-sans">Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Explanation */}
+              <div className="rounded-lg bg-slate-950/70 border border-slate-800/80 p-3 space-y-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-400">
+                  How It Works
+                </span>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {displayedExplanationText}
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+              {isQuest && (
+                <button
+                  type="button"
+                  onClick={handleApplySolution}
+                  className="px-3.5 py-2 min-h-[40px] rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 touch-manipulation active:scale-95"
+                >
+                  Apply to Code Editor
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  playButtonPop(soundEnabled);
+                  setSolutionModalOpen(false);
+                }}
+                className="px-4 py-2 min-h-[40px] rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-slate-400 touch-manipulation active:scale-95"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
