@@ -1,0 +1,152 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String            @id @default(uuid())
+  email           String            @unique
+  emailVerified   Boolean           @default(false)
+  username        String?
+  level           Int               @default(1)
+  totalXp         Int               @default(0)
+  streakDays      Int               @default(1)
+  lastActiveAt    DateTime          @default(now())
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  sessions        Session[]
+  magicTokens     MagicLinkToken[]
+  progress        LessonProgress[]
+  xpTransactions  XpTransaction[]
+  attempts        ExerciseAttempt[]
+  achievements    UserAchievement[]
+
+  @@map("users")
+}
+
+model MagicLinkToken {
+  id          String    @id @default(uuid())
+  userId      String
+  token       String    @unique
+  email       String
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([email])
+  @@map("magic_link_tokens")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionToken])
+  @@map("sessions")
+}
+
+model Lesson {
+  id                    String            @id
+  topicKey              String            @unique
+  title                 String
+  learningObjective     String
+  prerequisiteConcepts  String[]
+  explanation           String
+  difficulty            String            @default("beginner")
+  estimatedMinutes      Int               @default(3)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  sources               SourceReference[]
+  progress              LessonProgress[]
+
+  @@map("lessons")
+}
+
+model SourceReference {
+  id                    String    @id @default(uuid())
+  lessonId              String
+  title                 String
+  url                   String
+  license               String    @default("CC-BY-SA 2.5")
+  retrievedAt           DateTime  @default(now())
+  attribution           String
+  transformationSummary String?
+
+  lesson                Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@map("source_references")
+}
+
+model LessonProgress {
+  id          String    @id @default(uuid())
+  userId      String
+  lessonId    String
+  questId     String
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson      Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questId])
+  @@map("lesson_progress")
+}
+
+model XpTransaction {
+  id          String    @id @default(uuid())
+  userId      String
+  amount      Int
+  reason      String    // e.g. "QUEST_COMPLETION", "DAILY_MISSION", "ACHIEVEMENT"
+  referenceId String    // Idempotency key (e.g. "w1-q1", "daily-spark-2026-10-20")
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, referenceId]) // Enforces idempotency: reward granted exactly once per referenceId
+  @@map("xp_transactions")
+}
+
+model ExerciseAttempt {
+  id          String    @id @default(uuid())
+  userId      String
+  exerciseId  String
+  exerciseType String
+  userAnswer  String
+  isCorrect   Boolean
+  xpAwarded   Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("exercise_attempts")
+}
+
+model UserAchievement {
+  id            String    @id @default(uuid())
+  userId        String
+  achievementId String
+  unlockedAt    DateTime  @default(now())
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+}

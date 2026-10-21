@@ -1,0 +1,6 @@
+{
+  "name": "CodeQuest",
+  "description": "A gamified platform for learning JavaScript one bite-sized concept at a time.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
