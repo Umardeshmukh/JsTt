@@ -4,45 +4,41 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { UserProgress, Quest, Achievement, DailyMission } from './types';
+import { UserProgress, Quest } from './types';
+import { DynamicExercise } from './types/exercise';
 import { WORLDS } from './data/curriculum';
-import { INITIAL_ACHIEVEMENTS } from './data/achievements';
-import { calculateLevel, didLevelUp } from './game/scoring';
+import { QUESTION_BANK } from './data/question_bank';
+import { calculateLevel } from './game/scoring';
+import { validateSolution } from './game/validator';
 import { Navbar } from './components/Navbar';
-import { GreetingBanner } from './components/GreetingBanner';
-import { ContinueLearningCard } from './components/ContinueLearningCard';
-import { DailyMissionCard } from './components/DailyMissionCard';
-import { WorldMap } from './components/WorldMap';
-import { AchievementsSection } from './components/AchievementsSection';
-import { CodexView } from './components/CodexView';
-import { QuestInteractiveSandbox } from './components/QuestInteractiveSandbox';
-import { QuickRefresherModal } from './components/QuickRefresherModal';
-import { playLevelUpFanfare, playSuccessChime } from './utils/sound';
-import { Sparkles, X } from 'lucide-react';
+import { LearnView } from './components/LearnView';
+import { ProgressView } from './components/ProgressView';
+import { ExerciseScreen, ExerciseItem } from './components/ExerciseScreen';
+import { AuthUser } from './services/auth_service';
+import { playButtonPop } from './utils/sound';
 
 const STORAGE_KEY = 'codequest_user_progress_v1';
-
-const DEFAULT_MISSION: DailyMission = {
-  id: 'daily-spark-1',
-  title: 'Daily Spark: Complete 1 Challenge',
-  description: 'Solve any challenge in World 1 to maintain your momentum.',
-  targetCount: 1,
-  currentCount: 0,
-  xpReward: 25,
-  isCompleted: false,
-  claimed: false,
-};
+const AUTH_TOKEN_KEY = 'codequest_auth_session_token';
 
 const DEFAULT_PROGRESS: UserProgress = {
-  xp: 60,
+  xp: 30,
   level: 1,
   streakDays: 1,
   lastActiveDate: new Date().toISOString().split('T')[0],
   completedQuestIds: ['w1-q1'],
   activeQuestId: 'w1-q2',
-  dailyMission: DEFAULT_MISSION,
+  dailyMission: {
+    id: 'm1',
+    title: 'Daily lesson',
+    description: 'Complete 1 challenge',
+    targetCount: 1,
+    currentCount: 1,
+    xpReward: 25,
+    isCompleted: true,
+    claimed: true,
+  },
   soundEnabled: true,
-  unlockedAchievementIds: ['first-spark', 'streak-pioneer'],
+  unlockedAchievementIds: [],
 };
 
 export default function App() {
@@ -58,13 +54,62 @@ export default function App() {
     return DEFAULT_PROGRESS;
   });
 
-  const [currentView, setCurrentView] = useState<'dashboard' | 'map' | 'achievements' | 'codex'>('dashboard');
-  const [activePlayingQuest, setActivePlayingQuest] = useState<Quest | null>(null);
-  const [reviewingQuest, setReviewingQuest] = useState<Quest | null>(null);
-  const [showLevelUpModal, setShowLevelUpModal] = useState<boolean>(false);
+  const [currentView, setCurrentView] = useState<'learn' | 'progress'>('learn');
+  const [activeExerciseItem, setActiveExerciseItem] = useState<ExerciseItem | null>(null);
   const [showResetModal, setShowResetModal] = useState<boolean>(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
 
-  // Save to localStorage on progress changes
+  // 1. Sync session token with server on startup
+  useEffect(() => {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (token) {
+      fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.authenticated && data.user) {
+            setAuthUser(data.user);
+          }
+        })
+        .catch(() => {
+          // offline
+        });
+    }
+
+    // Check URL parameters for magic token verification
+    const params = new URLSearchParams(window.location.search);
+    const verifyToken = params.get('verifyToken');
+    if (verifyToken) {
+      fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: verifyToken }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.sessionToken && data.user) {
+            localStorage.setItem(AUTH_TOKEN_KEY, data.sessionToken);
+            setAuthUser(data.user);
+            // Clean URL query
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        })
+        .catch(() => {});
+    }
+
+    // Support ?autostart=1 query parameter to jump straight to active exercise
+    if (params.get('autostart') === '1') {
+      const world1 = WORLDS[0];
+      const targetQuest =
+        world1.quests.find((q) => q.id === progress.activeQuestId) ||
+        world1.quests.find((q) => !progress.completedQuestIds.includes(q.id)) ||
+        world1.quests[0];
+      setActiveExerciseItem({ type: 'quest', data: targetQuest });
+    }
+  }, []);
+
+  // 2. Persist progress in localStorage
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
@@ -73,169 +118,184 @@ export default function App() {
     }
   }, [progress]);
 
-  // Support ?autostart=1 query parameter to jump straight to active quest (ultra mode testability)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('autostart') === '1') {
-      const world1 = WORLDS[0];
-      const targetQuest = world1.quests.find((q) => q.id === progress.activeQuestId) || world1.quests[0];
-      setActivePlayingQuest(targetQuest);
-    }
-  }, []);
-
-  // Track consecutive active days for daily streak counter
-  useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    setProgress((prev) => {
-      if (!prev.lastActiveDate) {
-        return { ...prev, lastActiveDate: today, streakDays: 1 };
-      }
-      if (prev.lastActiveDate === today) {
-        return prev;
-      }
-      const last = new Date(prev.lastActiveDate);
-      const curr = new Date(today);
-      const diffTime = curr.getTime() - last.getTime();
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-      if (diffDays === 1) {
-        return {
-          ...prev,
-          lastActiveDate: today,
-          streakDays: prev.streakDays + 1,
-        };
-      } else if (diffDays > 1) {
-        return {
-          ...prev,
-          lastActiveDate: today,
-          streakDays: 1,
-        };
-      }
-      return prev;
-    });
-  }, []);
-
   const levelInfo = calculateLevel(progress.xp);
 
-  // Build current achievements list with dynamic unlock state
-  const achievements: Achievement[] = INITIAL_ACHIEVEMENTS.map((ach) => ({
-    ...ach,
-    isUnlocked: progress.unlockedAchievementIds.includes(ach.id),
-  }));
-
-  // Identify continue learning quest
+  // Identify current learning quest
   const world1 = WORLDS[0];
-  const activeQuest = world1.quests.find((q) => q.id === progress.activeQuestId) 
-    || world1.quests.find((q) => !progress.completedQuestIds.includes(q.id))
-    || world1.quests[world1.quests.length - 1];
+  const activeQuest =
+    world1.quests.find((q) => q.id === progress.activeQuestId) ||
+    world1.quests.find((q) => !progress.completedQuestIds.includes(q.id)) ||
+    world1.quests[world1.quests.length - 1];
 
-  const isCurrentQuestCompleted = progress.completedQuestIds.includes(activeQuest?.id || '');
-
-  const handleStartQuest = (quest: Quest) => {
-    setActivePlayingQuest(quest);
-  };
-
-  const handleCompleteQuest = (questId: string, xpReward: number) => {
-    setProgress((prev) => {
-      const alreadyCompleted = prev.completedQuestIds.includes(questId);
-      const newXp = alreadyCompleted ? prev.xp : prev.xp + xpReward;
-      const leveledUp = didLevelUp(prev.xp, newXp);
-
-      const newCompletedQuestIds = alreadyCompleted
-        ? prev.completedQuestIds
-        : [...prev.completedQuestIds, questId];
-
-      // Determine next active quest in world 1
-      const currentIndex = world1.quests.findIndex((q) => q.id === questId);
-      const nextQuest = world1.quests[currentIndex + 1];
-      const nextActiveId = nextQuest ? nextQuest.id : questId;
-
-      // Update daily mission
-      const updatedMission: DailyMission = {
-        ...prev.dailyMission,
-        currentCount: Math.min(prev.dailyMission.targetCount, prev.dailyMission.currentCount + 1),
-        isCompleted: true,
-      };
-
-      // Check achievement unlocks
-      const newAchievements = [...prev.unlockedAchievementIds];
-      if (questId === 'w1-q1' && !newAchievements.includes('first-spark')) {
-        newAchievements.push('first-spark');
-      }
-      if (questId === 'w1-q2' && !newAchievements.includes('variable-master')) {
-        newAchievements.push('variable-master');
-      }
-      if (questId === 'w1-q3' && !newAchievements.includes('math-wizard')) {
-        newAchievements.push('math-wizard');
-      }
-      if (
-        world1.quests.every((q) => newCompletedQuestIds.includes(q.id)) &&
-        !newAchievements.includes('world-1-boss')
-      ) {
-        newAchievements.push('world-1-boss');
-      }
-
-      if (leveledUp) {
-        setTimeout(() => {
-          playLevelUpFanfare(prev.soundEnabled);
-          setShowLevelUpModal(true);
-        }, 600);
-      }
-
-      return {
-        ...prev,
-        xp: newXp,
-        level: calculateLevel(newXp).level,
-        completedQuestIds: newCompletedQuestIds,
-        activeQuestId: nextActiveId,
-        dailyMission: updatedMission,
-        unlockedAchievementIds: newAchievements,
-      };
+  // Auth: Send magic link
+  const handleSendMagicLink = async (email: string) => {
+    const res = await fetch('/api/auth/magic-link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
     });
+    return res.json();
   };
 
-  const handleNextQuest = () => {
-    if (!activePlayingQuest) return;
-    const currentIndex = world1.quests.findIndex((q) => q.id === activePlayingQuest.id);
-    const nextQuest = world1.quests[currentIndex + 1];
-    if (nextQuest) {
-      setActivePlayingQuest(nextQuest);
-    } else {
-      setActivePlayingQuest(null);
-      setCurrentView('dashboard');
+  // Auth: Logout
+  const handleLogout = async () => {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (token) {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch {}
+      localStorage.removeItem(AUTH_TOKEN_KEY);
     }
+    setAuthUser(null);
   };
 
-  const handleClaimDailyMission = () => {
-    if (!progress.dailyMission.isCompleted || progress.dailyMission.claimed) return;
+  // Start a code quest
+  const handleStartQuest = (quest: Quest) => {
+    setActiveExerciseItem({ type: 'quest', data: quest });
+  };
 
-    setProgress((prev) => {
-      const newXp = prev.xp + prev.dailyMission.xpReward;
-      const leveledUp = didLevelUp(prev.xp, newXp);
+  // Start a dynamic exercise
+  const handleStartDynamic = (exercise: DynamicExercise) => {
+    setActiveExerciseItem({ type: 'dynamic', data: exercise });
+  };
 
-      const newAchievements = [...prev.unlockedAchievementIds];
-      if (!newAchievements.includes('daily-dynamo')) {
-        newAchievements.push('daily-dynamo');
+  // Check code quest solution with authoritative server XP
+  const handleCheckQuest = async (code: string) => {
+    if (!activeExerciseItem || activeExerciseItem.type !== 'quest') {
+      return { success: false, logs: [], feedback: 'No active quest.', awardedXp: 0 };
+    }
+
+    const quest = activeExerciseItem.data;
+    const clientValidation = validateSolution(code, quest.validationRules);
+
+    let serverAwardedXp = 0;
+    if (clientValidation.success) {
+      try {
+        const token = localStorage.getItem(AUTH_TOKEN_KEY);
+        const res = await fetch('/api/user/progress/complete-quest', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            questId: quest.id,
+            xpReward: quest.xpReward,
+            completedQuestIds: progress.completedQuestIds,
+          }),
+        });
+        const data = await res.json();
+        serverAwardedXp = data.awardedXp !== undefined ? data.awardedXp : (progress.completedQuestIds.includes(quest.id) ? 0 : quest.xpReward);
+      } catch {
+        // Offline server fallback: award XP idempotently
+        serverAwardedXp = progress.completedQuestIds.includes(quest.id) ? 0 : quest.xpReward;
       }
 
-      if (leveledUp) {
-        setTimeout(() => {
-          playLevelUpFanfare(prev.soundEnabled);
-          setShowLevelUpModal(true);
-        }, 400);
-      }
+      // Update progress state with authoritative XP
+      setProgress((prev) => {
+        const alreadyDone = prev.completedQuestIds.includes(quest.id);
+        const nextXp = prev.xp + serverAwardedXp;
+        const newCompleted = alreadyDone ? prev.completedQuestIds : [...prev.completedQuestIds, quest.id];
 
-      return {
-        ...prev,
-        xp: newXp,
-        level: calculateLevel(newXp).level,
-        dailyMission: {
-          ...prev.dailyMission,
-          claimed: true,
-        },
-        unlockedAchievementIds: newAchievements,
-      };
+        // Determine next active quest
+        const currentIndex = world1.quests.findIndex((q) => q.id === quest.id);
+        const nextQuest = world1.quests[currentIndex + 1];
+        const nextActiveId = nextQuest ? nextQuest.id : quest.id;
+
+        return {
+          ...prev,
+          xp: nextXp,
+          level: calculateLevel(nextXp).level,
+          completedQuestIds: newCompleted,
+          activeQuestId: nextActiveId,
+        };
+      });
+    }
+
+    return {
+      success: clientValidation.success,
+      logs: clientValidation.logs,
+      error: clientValidation.error || clientValidation.friendlyError,
+      feedback: clientValidation.feedback,
+      awardedXp: serverAwardedXp,
+    };
+  };
+
+  // Check dynamic exercise with authoritative server verification
+  const handleCheckDynamic = async (userAnswer: string | string[]) => {
+    if (!activeExerciseItem || activeExerciseItem.type !== 'dynamic') {
+      return { isCorrect: false, feedback: 'No active exercise.', awardedXp: 0 };
+    }
+
+    const exercise = activeExerciseItem.data;
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+
+    const res = await fetch('/api/validate-exercise', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        exerciseId: exercise.id,
+        userAnswer,
+        topicKey: exercise.conceptId,
+        completedExerciseIds: progress.completedQuestIds,
+      }),
     });
+
+    const data = await res.json();
+    const isCorrect = !!data.isCorrect;
+    const awardedXp = data.xpAwarded || 0;
+
+    if (isCorrect) {
+      setProgress((prev) => {
+        const alreadyDone = prev.completedQuestIds.includes(exercise.id);
+        const nextXp = prev.xp + awardedXp;
+        const newCompleted = alreadyDone ? prev.completedQuestIds : [...prev.completedQuestIds, exercise.id];
+        return {
+          ...prev,
+          xp: nextXp,
+          level: calculateLevel(nextXp).level,
+          completedQuestIds: newCompleted,
+        };
+      });
+    }
+
+    return {
+      isCorrect,
+      feedback: data.feedback || (isCorrect ? 'Well done! Answer is correct.' : 'Not quite. Check your answer and try again.'),
+      awardedXp,
+    };
+  };
+
+  // Continue to next lesson/exercise
+  const handleContinueAfterExercise = () => {
+    if (!activeExerciseItem) return;
+
+    if (activeExerciseItem.type === 'quest') {
+      const currentIndex = world1.quests.findIndex((q) => q.id === activeExerciseItem.data.id);
+      const nextQuest = world1.quests[currentIndex + 1];
+      if (nextQuest) {
+        setActiveExerciseItem({ type: 'quest', data: nextQuest });
+      } else {
+        setActiveExerciseItem(null);
+        setCurrentView('learn');
+      }
+    } else {
+      // Advance to next question in bank or return to learn view
+      const currentIndex = QUESTION_BANK.findIndex((q) => q.id === activeExerciseItem.data.id);
+      const nextBank = QUESTION_BANK[currentIndex + 1];
+      if (nextBank) {
+        setActiveExerciseItem({ type: 'dynamic', data: nextBank });
+      } else {
+        setActiveExerciseItem(null);
+        setCurrentView('learn');
+      }
+    }
   };
 
   const handleToggleSound = () => {
@@ -248,35 +308,49 @@ export default function App() {
   const handleResetProgress = () => {
     try {
       localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // Storage error
-    }
+    } catch {}
     setProgress(DEFAULT_PROGRESS);
     setShowResetModal(false);
-    setActivePlayingQuest(null);
-    setCurrentView('dashboard');
+    setActiveExerciseItem(null);
+    setCurrentView('learn');
   };
 
-  // If user is playing an interactive quest, render the Sandbox full view
-  if (activePlayingQuest) {
-    const currentIndex = world1.quests.findIndex((q) => q.id === activePlayingQuest.id);
-    const hasNextQuest = currentIndex < world1.quests.length - 1;
+  // Full-screen dedicated exercise mode if an exercise is active
+  if (activeExerciseItem) {
+    const isQuest = activeExerciseItem.type === 'quest';
+    const hasNext = isQuest
+      ? world1.quests.findIndex((q) => q.id === activeExerciseItem.data.id) < world1.quests.length - 1
+      : QUESTION_BANK.findIndex((q) => q.id === activeExerciseItem.data.id) < QUESTION_BANK.length - 1;
+
+    const lessonTitle = isQuest
+      ? `Lesson ${activeExerciseItem.data.number}: ${activeExerciseItem.data.title}`
+      : activeExerciseItem.data.title;
+
+    const learningObjective = isQuest
+      ? activeExerciseItem.data.conceptExplanation.summary
+      : activeExerciseItem.data.question;
+
+    const isCompleted = progress.completedQuestIds.includes(activeExerciseItem.data.id);
 
     return (
-      <QuestInteractiveSandbox
-        quest={activePlayingQuest}
-        onBack={() => setActivePlayingQuest(null)}
-        onCompleteQuest={handleCompleteQuest}
-        onNextQuest={handleNextQuest}
-        hasNextQuest={hasNextQuest}
+      <ExerciseScreen
+        item={activeExerciseItem}
+        lessonTitle={lessonTitle}
+        learningObjective={learningObjective}
+        isCompleted={isCompleted}
+        onBack={() => setActiveExerciseItem(null)}
+        onCheckQuest={handleCheckQuest}
+        onCheckDynamic={handleCheckDynamic}
+        onContinue={handleContinueAfterExercise}
+        hasNext={hasNext}
         soundEnabled={progress.soundEnabled}
       />
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0B0F19] bg-game-grid text-slate-100 flex flex-col selection:bg-violet-600 selection:text-white">
-      {/* Top Bar Contract compliant navigation */}
+    <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col">
+      {/* 1. Minimal Navigation Bar */}
       <Navbar
         currentView={currentView}
         onNavigate={setCurrentView}
@@ -284,170 +358,79 @@ export default function App() {
         soundEnabled={progress.soundEnabled}
         onToggleSound={handleToggleSound}
         onResetProgress={() => setShowResetModal(true)}
+        authUser={authUser}
+        onSendMagicLink={handleSendMagicLink}
+        onLogout={handleLogout}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {currentView === 'dashboard' && (
-          <>
-            {/* 1. Greeting Banner with Mascot Byte & XP status */}
-            <GreetingBanner levelInfo={levelInfo} streakDays={progress.streakDays} />
-
-            {/* 2. Primary Action Row: Continue Learning Card + Daily Mission Card */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-              <div className="lg:col-span-8 flex flex-col">
-                <ContinueLearningCard
-                  quest={activeQuest}
-                  worldTitle="World 1: JavaScript Basics"
-                  isCompleted={isCurrentQuestCompleted}
-                  onStartQuest={handleStartQuest}
-                  soundEnabled={progress.soundEnabled}
-                />
-              </div>
-              <div className="lg:col-span-4 flex flex-col">
-                <DailyMissionCard
-                  mission={progress.dailyMission}
-                  onClaimReward={handleClaimDailyMission}
-                  soundEnabled={progress.soundEnabled}
-                />
-              </div>
-            </div>
-
-            {/* 3. Visual Map of Learning Worlds */}
-            <WorldMap
-              worlds={WORLDS}
-              completedQuestIds={progress.completedQuestIds}
-              activeQuestId={progress.activeQuestId}
-              onSelectQuest={handleStartQuest}
-              onReviewQuest={setReviewingQuest}
-              soundEnabled={progress.soundEnabled}
-            />
-
-            {/* 4. Compact Achievements Section */}
-            <AchievementsSection achievements={achievements} />
-          </>
-        )}
-
-        {currentView === 'map' && (
-          <WorldMap
-            worlds={WORLDS}
+      {/* 2. Main Work Area: Learn or Progress */}
+      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {currentView === 'learn' && (
+          <LearnView
+            currentQuest={activeQuest}
             completedQuestIds={progress.completedQuestIds}
-            activeQuestId={progress.activeQuestId}
-            onSelectQuest={handleStartQuest}
-            onReviewQuest={setReviewingQuest}
+            onStartQuest={handleStartQuest}
+            onStartDynamic={handleStartDynamic}
             soundEnabled={progress.soundEnabled}
           />
         )}
 
-        {currentView === 'codex' && <CodexView />}
-
-        {currentView === 'achievements' && (
-          <AchievementsSection achievements={achievements} />
+        {currentView === 'progress' && (
+          <ProgressView
+            currentQuest={activeQuest}
+            completedQuestIds={progress.completedQuestIds}
+            levelInfo={levelInfo}
+            totalXp={progress.xp}
+            onContinueLesson={() => handleStartQuest(activeQuest)}
+            onResetProgress={() => setShowResetModal(true)}
+            soundEnabled={progress.soundEnabled}
+          />
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[#1E293B] bg-[#090D17] py-6 px-4 sm:px-6 text-center text-xs text-slate-400">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>CodeQuest · One concept, one tiny lesson, one satisfying win.</p>
-          <div className="flex items-center gap-4 text-slate-400">
-            <span>JavaScript Basics</span>
-            <span aria-hidden="true">·</span>
+      {/* 3. Minimal Footer */}
+      <footer className="border-t border-slate-800/80 bg-[#070b12] py-4 px-4 sm:px-6 text-center text-xs text-slate-500">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+          <p>CodeQuest · JavaScript Learning Platform</p>
+          <div className="flex items-center gap-3">
+            <span>World 1: JavaScript Basics</span>
+            <span>·</span>
             <button
               onClick={() => setShowResetModal(true)}
-              className="hover:text-slate-300 transition-colors focus:outline-none"
+              className="text-slate-400 hover:text-slate-200 transition-colors focus:outline-none"
             >
-              Reset Progress
+              Reset Data
             </button>
           </div>
         </div>
       </footer>
 
-      {/* Quick Refresher Cheat-Sheet Modal */}
-      {reviewingQuest && (
-        <QuickRefresherModal
-          quest={reviewingQuest}
-          onClose={() => setReviewingQuest(null)}
-          onPracticeInSandbox={(q) => {
-            setReviewingQuest(null);
-            handleStartQuest(q);
-          }}
-          soundEnabled={progress.soundEnabled}
-        />
-      )}
-
-      {/* Level Up Fanfare Modal */}
-      {showLevelUpModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="levelup-title"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-        >
-          <div className="relative w-full max-w-sm rounded-2xl bg-gradient-to-br from-[#1C233C] via-[#151C30] to-[#0F1424] border-2 border-amber-400/60 p-6 text-center shadow-2xl space-y-4">
-            <button
-              onClick={() => setShowLevelUpModal(false)}
-              className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-              aria-label="Close level up dialog"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-3xl shadow-lg shadow-amber-950/50">
-              {levelInfo.badge}
-            </div>
-
-            <div>
-              <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">
-                LEVEL UP REACHED!
-              </span>
-              <h3 id="levelup-title" className="text-2xl font-black text-white mt-1">
-                Level {levelInfo.level}
-              </h3>
-              <p className="text-sm font-semibold text-violet-300">
-                {levelInfo.title}
-              </p>
-              <p className="text-xs text-slate-300 mt-2 leading-relaxed">
-                Your coding prowess expands! Keep mastering challenges to unlock more power.
-              </p>
-            </div>
-
-            <button
-              onClick={() => setShowLevelUpModal(false)}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-bold text-sm shadow-md transition-all active:scale-95"
-            >
-              Claim Victory
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Reset Progress Confirmation Dialog */}
+      {/* 4. Reset Confirmation Modal */}
       {showResetModal && (
         <div
           role="dialog"
           aria-modal="true"
-          aria-labelledby="reset-title"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          aria-labelledby="reset-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
         >
-          <div className="relative w-full max-w-sm rounded-2xl bg-[#121826] border border-[#2B395E] p-6 text-center shadow-2xl space-y-4">
-            <h3 id="reset-title" className="text-lg font-bold text-white">
-              Reset Quest Progress?
+          <div className="relative w-full max-w-sm rounded-lg bg-slate-900 border border-slate-800 p-5 text-center shadow-xl space-y-3">
+            <h3 id="reset-modal-title" className="text-base font-bold text-slate-100">
+              Reset Learning Progress?
             </h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              This will return your quest history, XP, and daily missions back to the starting state.
+            <p className="text-xs text-slate-400 leading-relaxed">
+              This will reset your completed lessons, exercises, and XP back to the default starting state.
             </p>
 
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex items-center gap-2 pt-2">
               <button
                 onClick={() => setShowResetModal(false)}
-                className="flex-1 py-2 px-4 rounded-xl bg-[#1C253D] hover:bg-[#253252] text-slate-300 text-xs font-semibold transition-colors"
+                className="flex-1 py-1.5 px-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500"
               >
                 Cancel
               </button>
               <button
                 onClick={handleResetProgress}
-                className="flex-1 py-2 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition-colors"
+                className="flex-1 py-1.5 px-3 rounded bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-rose-400"
               >
                 Reset Now
               </button>

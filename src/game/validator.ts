@@ -24,7 +24,13 @@ export function executeCode(code: string): { logs: string[]; error?: string; fri
   const capturedVars: Record<string, any> = {};
 
   // Catch basic bad patterns before running
-  if (code.includes('while (true)') || code.includes('while(true)')) {
+  const normalized = code.replace(/\s+/g, '');
+  if (
+    normalized.includes('while(true)') ||
+    normalized.includes('while(1)') ||
+    normalized.includes('for(;;)') ||
+    normalized.includes('do{') && normalized.includes('}while(true)')
+  ) {
     return {
       logs: [],
       error: 'Infinite loop detected',
@@ -47,33 +53,37 @@ export function executeCode(code: string): { logs: string[]; error?: string; fri
   };
 
   try {
-    // Wrap code in a function that returns top-level variables if possible
-    // We append a small helper to inspect variables
-    const wrappedCode = `
+    // Sandbox header shadowing DOM and network globals
+    const sandboxPreamble = `
       "use strict";
       const console = arguments[0];
-      ${code}
+      const window = undefined;
+      const document = undefined;
+      const localStorage = undefined;
+      const sessionStorage = undefined;
+      const fetch = undefined;
+      const XMLHttpRequest = undefined;
+      const WebSocket = undefined;
     `;
 
-    const runner = new Function(wrappedCode);
+    const runner = new Function(`${sandboxPreamble}\n${code}`);
     runner(mockConsole);
 
-    // Also extract variables if code defined them with let/var/const
-    // Simple regex extraction for declared variables to verify them using a silent console
-    const silentConsole = { log: () => {}, info: () => {}, error: () => {} };
-    const varNamesMatch = code.matchAll(/(?:let|var|const)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=/g);
-    for (const match of varNamesMatch) {
-      const varName = match[1];
+    // Single-pass variable extraction for declared variables
+    const varNames = Array.from(code.matchAll(/(?:let|var|const)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=/g), m => m[1]);
+    if (varNames.length > 0) {
       try {
+        const silentConsole = { log: () => {}, info: () => {}, error: () => {} };
+        const returnEntries = varNames.map(v => `"${v}": (typeof ${v} !== 'undefined' ? ${v} : undefined)`).join(', ');
         const inspectFn = new Function(`
-          "use strict";
-          const console = arguments[0];
+          ${sandboxPreamble}
           ${code}
-          return typeof ${varName} !== 'undefined' ? ${varName} : undefined;
+          return { ${returnEntries} };
         `);
-        capturedVars[varName] = inspectFn(silentConsole);
+        const extracted = inspectFn(silentConsole);
+        Object.assign(capturedVars, extracted);
       } catch {
-        // Variable couldn't be extracted in isolated eval
+        // Variable couldn't be extracted in batch eval
       }
     }
 

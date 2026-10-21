@@ -1,15 +1,18 @@
-import React from 'react';
-import { Volume2, VolumeX, RotateCcw, BookOpen, Trophy, Compass, Sparkles } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Settings, Volume2, VolumeX, RotateCcw, User, LogOut, Check, ArrowRight, X } from 'lucide-react';
 import { LevelInfo } from '../game/scoring';
-import { playButtonPop } from '../utils/sound';
+import { AuthUser } from '../services/auth_service';
 
 interface NavbarProps {
-  currentView: 'dashboard' | 'map' | 'achievements' | 'codex';
-  onNavigate: (view: 'dashboard' | 'map' | 'achievements' | 'codex') => void;
+  currentView: 'learn' | 'progress';
+  onNavigate: (view: 'learn' | 'progress') => void;
   levelInfo: LevelInfo;
   soundEnabled: boolean;
   onToggleSound: () => void;
   onResetProgress: () => void;
+  authUser?: AuthUser | null;
+  onSendMagicLink?: (email: string) => Promise<{ success: boolean; verificationUrl?: string; error?: string }>;
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -19,170 +22,215 @@ export const Navbar: React.FC<NavbarProps> = ({
   soundEnabled,
   onToggleSound,
   onResetProgress,
+  authUser,
+  onSendMagicLink,
+  onLogout,
 }) => {
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authStatus, setAuthStatus] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowSettingsMenu(false);
+      }
+    };
+    if (showSettingsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showSettingsMenu]);
+
+  const handleMagicLinkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authEmail || !onSendMagicLink) return;
+    setAuthLoading(true);
+    setAuthStatus(null);
+    try {
+      const res = await onSendMagicLink(authEmail);
+      if (res.success) {
+        setAuthStatus('Magic link generated! Check console/click link below.');
+      } else {
+        setAuthStatus(res.error || 'Failed to generate link.');
+      }
+    } catch {
+      setAuthStatus('Network error.');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   return (
-    <header className="sticky top-0 z-40 bg-[#0B0F19]/90 backdrop-blur-md border-b border-[#1E293B]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-8">
-        {/* Zone 1: Single text element wordmark */}
-        <button
-          onClick={() => {
-            playButtonPop(soundEnabled);
-            onNavigate('dashboard');
-          }}
-          className="flex items-center gap-2.5 text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 rounded-lg p-1"
-          aria-label="CodeQuest Home"
-        >
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-500 flex items-center justify-center shadow-md shadow-violet-950/40">
-            <Sparkles className="w-4 h-4 text-white" />
-          </div>
-          <span className="text-lg font-bold tracking-tight text-white group-hover:text-violet-300 transition-colors whitespace-nowrap shrink-0">
-            Code<span className="text-violet-400">Quest</span>
-          </span>
-        </button>
+    <header className="sticky top-0 z-40 bg-[#090d16]/95 backdrop-blur border-b border-slate-800">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+        {/* Brand & Minimal Navigation */}
+        <div className="flex items-center gap-6">
+          <button
+            onClick={() => onNavigate('learn')}
+            className="text-base font-bold tracking-tight text-slate-100 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
+            aria-label="CodeQuest Home"
+          >
+            Code<span className="text-indigo-400">Quest</span>
+          </button>
 
-        {/* Zone 2: 4 clean single-line text navigation links */}
-        <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
-          <button
-            onClick={() => {
-              playButtonPop(soundEnabled);
-              onNavigate('dashboard');
-            }}
-            className={`transition-colors whitespace-nowrap shrink-0 ${
-              currentView === 'dashboard'
-                ? 'text-violet-400 font-semibold'
-                : 'hover:text-white'
-            }`}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => {
-              playButtonPop(soundEnabled);
-              onNavigate('map');
-            }}
-            className={`transition-colors whitespace-nowrap shrink-0 ${
-              currentView === 'map'
-                ? 'text-violet-400 font-semibold'
-                : 'hover:text-white'
-            }`}
-          >
-            World Map
-          </button>
-          <button
-            onClick={() => {
-              playButtonPop(soundEnabled);
-              onNavigate('codex');
-            }}
-            className={`transition-colors whitespace-nowrap shrink-0 ${
-              currentView === 'codex'
-                ? 'text-violet-400 font-semibold'
-                : 'hover:text-white'
-            }`}
-          >
-            Codex
-          </button>
-          <button
-            onClick={() => {
-              playButtonPop(soundEnabled);
-              onNavigate('achievements');
-            }}
-            className={`transition-colors whitespace-nowrap shrink-0 ${
-              currentView === 'achievements'
-                ? 'text-violet-400 font-semibold'
-                : 'hover:text-white'
-            }`}
-          >
-            Achievements
-          </button>
-        </nav>
+          <nav className="flex items-center gap-1 sm:gap-2" aria-label="Main navigation">
+            <button
+              onClick={() => onNavigate('learn')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                currentView === 'learn'
+                  ? 'bg-slate-800 text-indigo-300 border border-slate-700'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+            >
+              Learn
+            </button>
+            <button
+              onClick={() => onNavigate('progress')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                currentView === 'progress'
+                  ? 'bg-slate-800 text-indigo-300 border border-slate-700'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+            >
+              Progress
+            </button>
+          </nav>
+        </div>
 
-        {/* Zone 3: 1 primary action / status zone */}
-        <div className="flex items-center gap-3 shrink-0">
-          {/* Level badge */}
+        {/* Status & Secondary Menu */}
+        <div className="flex items-center gap-3">
+          {/* Authoritative Level & XP Badge */}
           <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#151D30] border border-[#24304F] text-xs font-medium text-slate-200"
+            className="flex items-center gap-2 px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-xs font-mono text-slate-300"
             title={`${levelInfo.currentLevelXp} total XP`}
           >
-            <span className="text-amber-400 font-bold tabular-nums">Lv.{levelInfo.level}</span>
-            <span className="text-slate-500">|</span>
-            <span className="text-slate-300 tabular-nums">{levelInfo.currentLevelXp} XP</span>
+            <span className="text-indigo-400 font-semibold">Lv.{levelInfo.level}</span>
+            <span className="text-slate-600">·</span>
+            <span className="text-slate-300">{levelInfo.currentLevelXp} XP</span>
           </div>
 
-          {/* Sound Toggle */}
-          <button
-            onClick={() => {
-              onToggleSound();
-              if (!soundEnabled) playButtonPop(true);
-            }}
-            className="p-2 rounded-lg bg-[#151D30] hover:bg-[#1E293B] border border-[#24304F] text-slate-300 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-            aria-label={soundEnabled ? 'Mute sound effects' : 'Enable sound effects'}
-            title={soundEnabled ? 'Mute audio' : 'Enable audio'}
-          >
-            {soundEnabled ? <Volume2 className="w-4 h-4 text-violet-400" /> : <VolumeX className="w-4 h-4 text-slate-500" />}
-          </button>
+          {/* Secondary Menu (Settings & Account) */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+              className="p-1.5 rounded-md bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 transition-colors focus-visible:ring-2 focus-visible:ring-indigo-500"
+              aria-label="Settings and account menu"
+              aria-expanded={showSettingsMenu}
+              title="Settings & Profile"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
 
-          {/* Reset Progress Button */}
-          <button
-            onClick={onResetProgress}
-            className="p-2 rounded-lg bg-[#151D30] hover:bg-[#1E293B] border border-[#24304F] text-slate-400 hover:text-amber-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-            aria-label="Reset progress to default"
-            title="Reset progress"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+            {showSettingsMenu && (
+              <div
+                role="menu"
+                className="absolute right-0 mt-2 w-72 rounded-lg bg-slate-900 border border-slate-800 shadow-xl p-3 text-xs text-slate-300 z-50 space-y-3"
+              >
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className="font-semibold text-slate-200">Settings</span>
+                  <button
+                    onClick={() => setShowSettingsMenu(false)}
+                    className="text-slate-500 hover:text-slate-300 p-0.5 rounded"
+                    aria-label="Close settings"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Sound toggle */}
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-slate-400">Sound Effects</span>
+                  <button
+                    onClick={onToggleSound}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+                  >
+                    {soundEnabled ? (
+                      <>
+                        <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>Enabled</span>
+                      </>
+                    ) : (
+                      <>
+                        <VolumeX className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Muted</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Reset Progress */}
+                <div className="flex items-center justify-between py-1 border-t border-slate-800 pt-2">
+                  <span className="text-slate-400">Reset Data</span>
+                  <button
+                    onClick={() => {
+                      setShowSettingsMenu(false);
+                      onResetProgress();
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-300 transition-colors"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Reset</span>
+                  </button>
+                </div>
+
+                {/* Account / Magic Link Auth */}
+                <div className="border-t border-slate-800 pt-2 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Account</span>
+                    {authUser ? (
+                      <span className="text-[11px] text-emerald-400 font-mono flex items-center gap-1">
+                        <Check className="w-3 h-3" />
+                        {authUser.email.slice(0, 16)}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-slate-500">Guest mode</span>
+                    )}
+                  </div>
+
+                  {authUser ? (
+                    <button
+                      onClick={() => {
+                        if (onLogout) onLogout();
+                        setShowSettingsMenu(false);
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 py-1 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs"
+                    >
+                      <LogOut className="w-3 h-3" />
+                      <span>Log Out</span>
+                    </button>
+                  ) : (
+                    <form onSubmit={handleMagicLinkSubmit} className="space-y-1.5">
+                      <input
+                        type="email"
+                        placeholder="Sign in with email (optional)"
+                        value={authEmail}
+                        onChange={(e) => setAuthEmail(e.target.value)}
+                        className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-800 text-slate-200 placeholder:text-slate-600 text-xs outline-none focus:border-indigo-500"
+                      />
+                      <button
+                        type="submit"
+                        disabled={authLoading || !authEmail}
+                        className="w-full py-1 px-2 rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium text-xs transition-colors flex items-center justify-center gap-1"
+                      >
+                        {authLoading ? 'Sending...' : 'Send Magic Link'}
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                      {authStatus && (
+                        <p className="text-[11px] text-slate-400 mt-1 leading-tight break-words">
+                          {authStatus}
+                        </p>
+                      )}
+                    </form>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-
-      {/* Mobile bottom nav bar */}
-      <div className="md:hidden flex items-center justify-around border-t border-[#1E293B] bg-[#0E1424] py-2 px-4">
-        <button
-          onClick={() => {
-            playButtonPop(soundEnabled);
-            onNavigate('dashboard');
-          }}
-          className={`flex flex-col items-center gap-1 text-[11px] py-1 px-2 rounded ${
-            currentView === 'dashboard' ? 'text-violet-400 font-semibold' : 'text-slate-400'
-          }`}
-        >
-          <Compass className="w-4 h-4" />
-          <span>Dashboard</span>
-        </button>
-        <button
-          onClick={() => {
-            playButtonPop(soundEnabled);
-            onNavigate('map');
-          }}
-          className={`flex flex-col items-center gap-1 text-[11px] py-1 px-2 rounded ${
-            currentView === 'map' ? 'text-violet-400 font-semibold' : 'text-slate-400'
-          }`}
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>Worlds</span>
-        </button>
-        <button
-          onClick={() => {
-            playButtonPop(soundEnabled);
-            onNavigate('codex');
-          }}
-          className={`flex flex-col items-center gap-1 text-[11px] py-1 px-2 rounded ${
-            currentView === 'codex' ? 'text-violet-400 font-semibold' : 'text-slate-400'
-          }`}
-        >
-          <BookOpen className="w-4 h-4" />
-          <span>Codex</span>
-        </button>
-        <button
-          onClick={() => {
-            playButtonPop(soundEnabled);
-            onNavigate('achievements');
-          }}
-          className={`flex flex-col items-center gap-1 text-[11px] py-1 px-2 rounded ${
-            currentView === 'achievements' ? 'text-violet-400 font-semibold' : 'text-slate-400'
-          }`}
-        >
-          <Trophy className="w-4 h-4" />
-          <span>Badges</span>
-        </button>
       </div>
     </header>
   );

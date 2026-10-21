@@ -25,8 +25,8 @@ const __dirname = path.dirname(__filename);
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
-
-  app.use(express.json());
+  app.disable('x-powered-by');
+  app.use(express.json({ limit: '1mb' }));
 
   // Helper middleware for authenticated requests
   const requireAuth = (req: Request, res: Response, next: () => void) => {
@@ -211,7 +211,7 @@ async function startServer() {
   });
 
   app.post('/api/validate-exercise', (req: Request, res: Response) => {
-    const { exerciseId, userAnswer, topicKey } = req.body;
+    const { exerciseId, userAnswer, topicKey, completedExerciseIds = [] } = req.body;
     if (!exerciseId || userAnswer === undefined) {
       return res.status(400).json({ success: false, error: 'exerciseId and userAnswer are required.' });
     }
@@ -233,6 +233,11 @@ async function startServer() {
     if (user && validation.isCorrect) {
       const xpRecord = recordUserXp(user.id, validation.xp, exerciseId);
       finalXp = xpRecord.awarded ? validation.xp : 0;
+    } else if (!user && validation.isCorrect) {
+      const alreadyDone = Array.isArray(completedExerciseIds) && completedExerciseIds.includes(exerciseId);
+      finalXp = alreadyDone ? 0 : validation.xp;
+    } else {
+      finalXp = 0;
     }
 
     res.json({
@@ -247,24 +252,40 @@ async function startServer() {
   // -------------------------------------------------------------
   // USER PROGRESS & XP IDEMPOTENCY
   // -------------------------------------------------------------
-  app.post('/api/user/progress/complete-quest', requireAuth, (req: Request, res: Response) => {
-    const user = (req as any).user;
-    const { questId, xpReward = 30 } = req.body;
+  app.post('/api/user/progress/complete-quest', (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+    const user = authenticateSession(token);
+    const { questId, xpReward = 30, completedQuestIds = [] } = req.body;
 
     if (!questId) {
       return res.status(400).json({ success: false, error: 'questId required' });
     }
 
-    const xpResult = recordUserXp(user.id, xpReward, questId);
-    if (!user.completedQuestIds.includes(questId)) {
-      user.completedQuestIds.push(questId);
+    if (user) {
+      const xpResult = recordUserXp(user.id, xpReward, questId);
+      if (!user.completedQuestIds.includes(questId)) {
+        user.completedQuestIds.push(questId);
+      }
+      return res.json({
+        success: true,
+        user,
+        awardedXp: xpResult.awarded ? xpReward : 0,
+      });
     }
 
-    res.json({
+    // Guest progression: authoritative server validation
+    const alreadyDone = Array.isArray(completedQuestIds) && completedQuestIds.includes(questId);
+    return res.json({
       success: true,
-      user,
-      awardedXp: xpResult.awarded ? xpReward : 0,
+      user: null,
+      awardedXp: alreadyDone ? 0 : xpReward,
     });
+  });
+
+  // 404 handler for unrecognized API endpoints (prevents returning SPA html for missing APIs)
+  app.all('/api/*', (_req: Request, res: Response) => {
+    res.status(404).json({ success: false, error: 'API endpoint not found.' });
   });
 
   // -------------------------------------------------------------
@@ -287,6 +308,15 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   }
+
+  // Centralized Express error handler
+  app.use((err: any, _req: Request, res: Response, _next: () => void) => {
+    console.error('[Server Internal Error]:', err);
+    res.status(err.status || 500).json({
+      success: false,
+      error: process.env.NODE_ENV === 'production' ? 'Internal server error.' : (err.message || String(err)),
+    });
+  });
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[CodeQuest] Server running at http://0.0.0.0:${PORT} ($0 Operating Budget Enforced)`);

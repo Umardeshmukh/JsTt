@@ -45,3 +45,20 @@ test('validateSolution captures variables correctly', () => {
   assert.equal(result.success, true);
   assert.equal(result.variables.gems, 15);
 });
+
+test('executeCode blocks common infinite loop patterns safely', () => {
+  const loop1 = executeCode('while (true) { console.log("stuck"); }');
+  assert.ok(loop1.error?.includes('Infinite loop'));
+
+  const loop2 = executeCode('while ( 1 ) { }');
+  assert.ok(loop2.error?.includes('Infinite loop'));
+
+  const loop3 = executeCode('for (;;) { }');
+  assert.ok(loop3.error?.includes('Infinite loop'));
+});
+
+test('executeCode shadows sensitive browser globals inside sandbox', () => {
+  const code = 'console.log(typeof window, typeof fetch, typeof localStorage);';
+  const result = executeCode(code);
+  assert.equal(result.logs[0], 'undefined undefined undefined');
+});
